@@ -75,7 +75,9 @@ st.sidebar.header("1. Portfolio Manager")
 
 # Asset Management
 for i, asset in enumerate(st.session_state.assets):
-    with st.sidebar.expander(f"{asset['name']}", expanded=False):
+    # Ensure unique label for expander
+    label = f"{asset['name']} (#{i+1})"
+    with st.sidebar.expander(label, expanded=False):
         asset["name"] = st.text_input("Name", value=asset["name"], key=f"name_{asset['id']}")
         
         asset["is_new_purchase"] = st.checkbox("Is this a new purchase?", value=asset["is_new_purchase"], key=f"new_{asset['id']}")
@@ -133,11 +135,15 @@ else:
 # Determine Slider Range
 min_lvr = float(base_lvr)
 max_lvr = 80.0
-if min_lvr > max_lvr:
-    max_lvr = min_lvr # If already over 80, allow up to current
 
-# LVR Slider
-target_lvr = st.sidebar.slider("Target LVR (%)", min_value=min_lvr, max_value=max_lvr, value=min_lvr, step=0.1, format="%.1f%%")
+# LVR Slider Logic
+if min_lvr > max_lvr:
+    # If committed debt already exceeds 80% LVR, we can't target 80%.
+    # We must set the target to at least the current committed LVR.
+    st.sidebar.warning(f"Base LVR is {min_lvr:.1f}%, which is > 80%. Slider disabled.")
+    target_lvr = min_lvr
+else:
+    target_lvr = st.sidebar.slider("Target LVR (%)", min_value=min_lvr, max_value=max_lvr, value=min_lvr, step=0.1, format="%.1f%%")
 
 # Calculate Buffer based on Target LVR
 # Target Debt = Assets * (Target LVR / 100)
