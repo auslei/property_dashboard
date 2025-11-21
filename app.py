@@ -29,29 +29,27 @@ if "assets" not in st.session_state:
             "current_value": 1_100_000.0,
             "is_new_purchase": False,
             "purchase_price": 0.0,
+            "other_capital_costs": 0.0,
             "renovation_cost": 500_000.0,
             "end_value": 2_000_000.0,
-            "weekly_rent": 1000.0
+            "weekly_rent": 1000.0,
+            "apply_land_tax": True,
+            "land_tax": 8000.0,
+            "other_annual_costs": 3000.0
         },
         {
             "id": str(uuid.uuid4()),
             "name": "House 2 (Existing Investment)",
-            "current_value": 2_000_000.0,
-            "is_new_purchase": False,
-            "purchase_price": 0.0,
-            "renovation_cost": 0.0,
-            "end_value": 2_000_000.0,
-            "weekly_rent": 800.0
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "name": "House 3 (New Purchase)",
             "current_value": 0.0,
             "is_new_purchase": True,
-            "purchase_price": 3_000_000.0,
+            "purchase_price": 1_100_000.0,
+            "other_capital_costs": 70_000.0,
             "renovation_cost": 0.0,
-            "end_value": 3_000_000.0,
-            "weekly_rent": 1200.0
+            "end_value": 1_300_000.0,
+            "weekly_rent": 1100.0,
+            "apply_land_tax": True,
+            "land_tax": 7000.0,
+            "other_annual_costs": 2500.0
         }
     ]
 
@@ -62,9 +60,13 @@ def add_asset():
         "current_value": 0.0,
         "is_new_purchase": True,
         "purchase_price": 1_000_000.0,
+        "other_capital_costs": 0.0,
         "renovation_cost": 0.0,
         "end_value": 1_000_000.0,
-        "weekly_rent": 500.0
+        "weekly_rent": 500.0,
+        "apply_land_tax": False,
+        "land_tax": 0.0,
+        "other_annual_costs": 0.0
     })
 
 def remove_asset(asset_id):
@@ -91,10 +93,12 @@ for i, asset in enumerate(st.session_state.assets):
         
         if asset["is_new_purchase"]:
             asset["purchase_price"] = st.number_input("Purchase Price ($)", value=float(asset["purchase_price"]), step=100000.0, key=f"price_{asset['id']}")
+            asset["other_capital_costs"] = st.number_input("Other Capital Costs ($)", value=float(asset.get("other_capital_costs", 0.0)), step=1000.0, help="Legal fees, due diligence, etc.", key=f"other_cap_{asset['id']}")
             asset["current_value"] = 0.0 # New purchases have no 'current' value in the portfolio yet
         else:
             asset["current_value"] = st.number_input("Current Value ($)", value=float(asset["current_value"]), step=100000.0, key=f"curr_{asset['id']}")
             asset["purchase_price"] = 0.0
+            asset["other_capital_costs"] = 0.0
             
         asset["renovation_cost"] = st.number_input("Renovation/Build Cost ($)", value=float(asset["renovation_cost"]), step=10000.0, key=f"reno_{asset['id']}")
         
@@ -105,6 +109,17 @@ for i, asset in enumerate(st.session_state.assets):
         asset["end_value"] = st.number_input("Value After Works ($)", value=float(asset["end_value"]), step=100000.0, help="Expected value after renovation/build", key=f"end_{asset['id']}")
         
         asset["weekly_rent"] = st.number_input("Est. Weekly Rent ($)", value=float(asset["weekly_rent"]), step=50.0, key=f"rent_{asset['id']}")
+        
+        # Annual Expenses
+        st.markdown("**Annual Expenses**")
+        asset["apply_land_tax"] = st.checkbox("Subject to Land Tax?", value=asset.get("apply_land_tax", False), key=f"apply_tax_{asset['id']}")
+        
+        if asset["apply_land_tax"]:
+            asset["land_tax"] = st.number_input("Est. Annual Land Tax ($)", value=float(asset.get("land_tax", 0.0)), step=100.0, key=f"tax_{asset['id']}")
+        else:
+            asset["land_tax"] = 0.0
+            
+        asset["other_annual_costs"] = st.number_input("Other Annual Costs ($)", value=float(asset.get("other_annual_costs", 0.0)), step=100.0, help="Insurance, Management Fees, Maintenance, etc.", key=f"other_ann_{asset['id']}")
         
         if st.button("Remove Asset", key=f"rem_{asset['id']}"):
             remove_asset(asset["id"])
@@ -128,10 +143,13 @@ total_assets_current = sum(a["current_value"] for a in st.session_state.assets)
 total_assets_future = sum(a["end_value"] for a in st.session_state.assets)
 total_build_cost = sum(a["renovation_cost"] for a in st.session_state.assets)
 total_purchase_costs = sum(a["purchase_price"] for a in st.session_state.assets)
+total_other_capital = sum(a.get("other_capital_costs", 0.0) for a in st.session_state.assets)
+total_land_tax = sum(a.get("land_tax", 0.0) for a in st.session_state.assets)
+total_other_annual_costs = sum(a.get("other_annual_costs", 0.0) for a in st.session_state.assets)
 total_stamp_duty = total_purchase_costs * stamp_duty_rate
 
 # Debt Calculation
-committed_debt = current_debt + total_build_cost + total_purchase_costs + total_stamp_duty
+committed_debt = current_debt + total_build_cost + total_purchase_costs + total_other_capital + total_stamp_duty
 
 # Calculate Base LVR (Minimum possible)
 if total_assets_future > 0:
@@ -234,11 +252,20 @@ with tab1:
     st.write("How much rent do you need to cover the interest?")
     
     total_monthly_rent = sum(a["weekly_rent"] for a in st.session_state.assets) * 52 / 12
-    gap_io = pmt_io - total_monthly_rent
-    gap_pi = pmt_pi - total_monthly_rent
+    monthly_land_tax = total_land_tax / 12
+    monthly_other_costs = total_other_annual_costs / 12
+    total_monthly_expenses = monthly_land_tax + monthly_other_costs
+    
+    # Net Monthly Income (Rent - Expenses)
+    net_monthly_income = total_monthly_rent - total_monthly_expenses
+    
+    gap_io = pmt_io - net_monthly_income
+    gap_pi = pmt_pi - net_monthly_income
     
     col_a, col_b, col_c = st.columns(3)
     col_a.metric("Total Monthly Rent", f"${total_monthly_rent:,.0f}")
+    col_a.caption(f"Less Expenses: -${total_monthly_expenses:,.0f}/m")
+    
     col_b.metric("IO Shortfall", f"-${gap_io:,.0f}", delta_color="off")
     col_c.metric("P&I Shortfall", f"-${gap_pi:,.0f}", delta_color="off")
     
@@ -246,13 +273,13 @@ with tab1:
         st.warning(f"You need to find **${gap_io:,.0f} per month** from your salary to just pay the interest.")
         
         # Buffer Logic
-        if buffer_cash > 0:
+        if buffer_cash > 1.0:
             months_survival = buffer_cash / gap_io
             years_survival = months_survival / 12
             
             st.info(textwrap.dedent(f"""
-                🛡️ **Buffer Strategy Active:** You borrowed an extra **${buffer_cash:,.0f}**. 
-                Using this to pay the ${gap_io:,.0f} monthly shortfall, your buffer will last:
+                🛡️ **Buffer Strategy Active:** You borrowed an extra **\${buffer_cash:,.0f}**. 
+                Using this to pay the \${gap_io:,.0f} monthly shortfall, your buffer will last:
                 
                 ### **{months_survival:.1f} Months** ({years_survival:.1f} Years)
                 
@@ -348,17 +375,20 @@ with tab3:
             "Name": a["name"],
             "Current Value": a["current_value"],
             "Purchase Price": a["purchase_price"],
+            "Other Capital Costs": a.get("other_capital_costs", 0.0),
             "Reno Cost": a["renovation_cost"],
             "End Value": a["end_value"],
-            "Weekly Rent": a["weekly_rent"]
+            "Weekly Rent": a["weekly_rent"],
+            "Land Tax": a.get("land_tax", 0.0),
+            "Other Annual Costs": a.get("other_annual_costs", 0.0)
         })
     
     st.dataframe(pd.DataFrame(asset_data))
     
     st.subheader("Debt Breakdown")
     st.dataframe(pd.DataFrame({
-        "Item": ["Existing Debt", "New Purchase Costs", "Renovation Costs", "Stamp Duty", "Cash Buffer"],
-        "Amount": [current_debt, total_purchase_costs, total_build_cost, total_stamp_duty, buffer_cash]
+        "Item": ["Existing Debt", "New Purchase Costs", "Other Capital Costs", "Renovation Costs", "Stamp Duty", "Cash Buffer"],
+        "Amount": [current_debt, total_purchase_costs, total_other_capital, total_build_cost, total_stamp_duty, buffer_cash]
     }))
 
 with tab4:
