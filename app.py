@@ -231,7 +231,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["💰 Cash Flow Analysis", "📈 Capitalizing 
 
 with tab1:
     st.header("Can you afford the debt?")
-    st.write(f"Total Loan Amount: **${total_debt_future:,.0f}** (Includes Stamp Duty + ${buffer_cash:,.0f} Cash Buffer)")
+    st.write(f"Total Loan Amount: **&dollar;{total_debt_future:,.0f}** (Includes Stamp Duty + &dollar;{buffer_cash:,.0f} Cash Buffer)")
     
     c1, c2 = st.columns(2)
     
@@ -264,13 +264,13 @@ with tab1:
     
     col_a, col_b, col_c = st.columns(3)
     col_a.metric("Total Monthly Rent", f"${total_monthly_rent:,.0f}")
-    col_a.caption(f"Less Expenses: -${total_monthly_expenses:,.0f}/m")
+    col_a.caption(f"Less Expenses: -&dollar;{total_monthly_expenses:,.0f}/m")
     
     col_b.metric("IO Shortfall", f"-${gap_io:,.0f}", delta_color="off")
     col_c.metric("P&I Shortfall", f"-${gap_pi:,.0f}", delta_color="off")
     
     if gap_io > 0:
-        st.warning(f"You need to find **${gap_io:,.0f} per month** from your salary to just pay the interest.")
+        st.warning(f"You need to find **&dollar;{gap_io:,.0f} per month** from your salary to just pay the interest.")
         
         # Buffer Logic
         if buffer_cash > 1.0:
@@ -278,8 +278,8 @@ with tab1:
             years_survival = months_survival / 12
             
             st.info(textwrap.dedent(f"""
-                🛡️ **Buffer Strategy Active:** You borrowed an extra **\\${buffer_cash:,.0f}**. 
-                Using this to pay the \\${gap_io:,.0f} monthly shortfall, your buffer will last:
+                🛡️ **Buffer Strategy Active:** You borrowed an extra **&dollar;{buffer_cash:,.0f}**. 
+                Using this to pay the &dollar;{gap_io:,.0f} monthly shortfall, your buffer will last:
                 
                 ### **{months_survival:.1f} Months** ({years_survival:.1f} Years)
                 
@@ -429,7 +429,7 @@ with tab4:
     is_uncrossing_possible = total_debt_future <= total_capacity_80
     
     if is_uncrossing_possible:
-        st.success(f"✅ **Uncrossing is Possible!** Your Total Debt (\\${total_debt_future:,.0f}) is less than your Total Borrowing Capacity at 80% LVR (\\${total_capacity_80:,.0f}).")
+        st.success(f"✅ **Uncrossing is Possible!** Your Total Debt (&dollar;{total_debt_future:,.0f}) is less than your Total Borrowing Capacity at 80% LVR (&dollar;{total_capacity_80:,.0f}).")
         
         # Allocate proportional to value (to keep LVRs even)
         for item in asset_calcs:
@@ -439,7 +439,7 @@ with tab4:
             item["allocated_debt"] = share
             
     else:
-        st.warning(f"⚠️ **Cross-Collateralization Required.** You owe \\${total_debt_future:,.0f}, but banks will only lend \\${total_capacity_80:,.0f} at 80% LVR. You are over the 80% threshold globally.")
+        st.warning(f"⚠️ **Cross-Collateralization Required.** You owe &dollar;{total_debt_future:,.0f}, but banks will only lend &dollar;{total_capacity_80:,.0f} at 80% LVR. You are over the 80% threshold globally.")
         
         # Allocate 80% to everything (max out)
         for item in asset_calcs:
