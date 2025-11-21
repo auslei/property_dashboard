@@ -278,8 +278,8 @@ with tab1:
             years_survival = months_survival / 12
             
             st.info(textwrap.dedent(f"""
-                🛡️ **Buffer Strategy Active:** You borrowed an extra **\${buffer_cash:,.0f}**. 
-                Using this to pay the \${gap_io:,.0f} monthly shortfall, your buffer will last:
+                🛡️ **Buffer Strategy Active:** You borrowed an extra **\\${buffer_cash:,.0f}**. 
+                Using this to pay the \\${gap_io:,.0f} monthly shortfall, your buffer will last:
                 
                 ### **{months_survival:.1f} Months** ({years_survival:.1f} Years)
                 
@@ -429,7 +429,7 @@ with tab4:
     is_uncrossing_possible = total_debt_future <= total_capacity_80
     
     if is_uncrossing_possible:
-        st.success(f"✅ **Uncrossing is Possible!** Your Total Debt (\${total_debt_future:,.0f}) is less than your Total Borrowing Capacity at 80% LVR (\${total_capacity_80:,.0f}).")
+        st.success(f"✅ **Uncrossing is Possible!** Your Total Debt (\\${total_debt_future:,.0f}) is less than your Total Borrowing Capacity at 80% LVR (\\${total_capacity_80:,.0f}).")
         
         # Allocate proportional to value (to keep LVRs even)
         for item in asset_calcs:
@@ -439,7 +439,7 @@ with tab4:
             item["allocated_debt"] = share
             
     else:
-        st.warning(f"⚠️ **Cross-Collateralization Required.** You owe \${total_debt_future:,.0f}, but banks will only lend \${total_capacity_80:,.0f} at 80% LVR. You are over the 80% threshold globally.")
+        st.warning(f"⚠️ **Cross-Collateralization Required.** You owe \\${total_debt_future:,.0f}, but banks will only lend \\${total_capacity_80:,.0f} at 80% LVR. You are over the 80% threshold globally.")
         
         # Allocate 80% to everything (max out)
         for item in asset_calcs:
