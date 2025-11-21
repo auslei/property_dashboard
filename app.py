@@ -75,10 +75,17 @@ st.sidebar.header("1. Portfolio Manager")
 
 # Asset Management
 for i, asset in enumerate(st.session_state.assets):
+    # Sync name from session state if it exists to update expander label immediately
+    name_key = f"name_{asset['id']}"
+    if name_key in st.session_state:
+        asset["name"] = st.session_state[name_key]
+
     # Ensure unique label for expander
     label = f"{asset['name']} (#{i+1})"
     with st.sidebar.expander(label, expanded=False):
-        asset["name"] = st.text_input("Name", value=asset["name"], key=f"name_{asset['id']}")
+        # We don't need to assign the result back to asset["name"] here if we rely on the sync above,
+        # but keeping it doesn't hurt and ensures consistency if the key was missing.
+        st.text_input("Name", value=asset["name"], key=name_key)
         
         asset["is_new_purchase"] = st.checkbox("Is this a new purchase?", value=asset["is_new_purchase"], key=f"new_{asset['id']}")
         
@@ -202,7 +209,7 @@ else:
 st.divider()
 
 # --- Tabs for detailed analysis ---
-tab1, tab2, tab3 = st.tabs(["💰 Cash Flow Analysis", "📈 Capitalizing Interest (Risk Sim)", "📋 Portfolio Details"])
+tab1, tab2, tab3, tab4 = st.tabs(["💰 Cash Flow Analysis", "📈 Capitalizing Interest (Risk Sim)", "📋 Portfolio Details", "🚀 Optimization"])
 
 with tab1:
     st.header("Can you afford the debt?")
@@ -353,3 +360,97 @@ with tab3:
         "Item": ["Existing Debt", "New Purchase Costs", "Renovation Costs", "Stamp Duty", "Cash Buffer"],
         "Amount": [current_debt, total_purchase_costs, total_build_cost, total_stamp_duty, buffer_cash]
     }))
+
+with tab4:
+    st.header("🚀 Loan Structuring & Optimization")
+    st.markdown("### Can you 'Uncross' your loans?")
+    st.markdown(textwrap.dedent("""
+        **Goal:** Attribute debt to specific properties to avoid "Cross-Collateralization". 
+        Ideally, each property should stand alone with a loan of **≤ 80%** of its value.
+    """))
+    
+    # 1. Calculate Capacity
+    structure_data = []
+    total_capacity_80 = 0
+    
+    # We need to allocate the ACTUAL total debt (future) across these assets
+    remaining_debt_to_allocate = total_debt_future
+    
+    # First pass: Calculate limits
+    asset_calcs = []
+    for a in st.session_state.assets:
+        val = a["end_value"]
+        limit_80 = val * 0.80
+        total_capacity_80 += limit_80
+        asset_calcs.append({
+            "name": a["name"],
+            "value": val,
+            "limit_80": limit_80,
+            "allocated_debt": 0.0
+        })
+        
+    # 2. Allocation Logic
+    # Strategy: Fill up to 80% first? Or Pro-rata?
+    # "Uncrossing" usually means maxing out the highest growth/safest assets or just spreading it.
+    # Let's try a "Safe Standalone" approach:
+    # If Total Debt <= Total Capacity, we can uncross.
+    # We will allocate debt proportional to value, but capped at 80%.
+    
+    is_uncrossing_possible = total_debt_future <= total_capacity_80
+    
+    if is_uncrossing_possible:
+        st.success(f"✅ **Uncrossing is Possible!** Your Total Debt (\${total_debt_future:,.0f}) is less than your Total Borrowing Capacity at 80% LVR (\${total_capacity_80:,.0f}).")
+        
+        # Allocate proportional to value (to keep LVRs even)
+        for item in asset_calcs:
+            # Ideal share = (Item Value / Total Value) * Total Debt
+            # This naturally keeps LVR constant across all assets if possible
+            share = (item["value"] / total_assets_future) * total_debt_future
+            item["allocated_debt"] = share
+            
+    else:
+        st.warning(f"⚠️ **Cross-Collateralization Required.** You owe \${total_debt_future:,.0f}, but banks will only lend \${total_capacity_80:,.0f} at 80% LVR. You are over the 80% threshold globally.")
+        
+        # Allocate 80% to everything (max out)
+        for item in asset_calcs:
+            item["allocated_debt"] = item["limit_80"]
+            remaining_debt_to_allocate -= item["limit_80"]
+            
+        # The remaining debt is "Unsecured" or "Over 80%" (LMI territory)
+        # We just add it to the first asset or spread it? 
+        # Let's spread the excess pro-rata to show the pain shared, or highlight it separately.
+        # For simplicity in this view, let's add it to the largest asset or just show it as "Excess".
+        # Actually, let's just distribute it pro-rata on top of the 80%.
+        excess_debt = total_debt_future - total_capacity_80
+        for item in asset_calcs:
+            extra = (item["value"] / total_assets_future) * excess_debt
+            item["allocated_debt"] += extra
+
+    # 3. Build Display Data
+    for item in asset_calcs:
+        lvr_individual = (item["allocated_debt"] / item["value"] * 100) if item["value"] > 0 else 0
+        status = "✅ Standalone" if lvr_individual <= 80 else "⚠️ Crossed / LMI"
+        
+        structure_data.append({
+            "Asset": item["name"],
+            "Market Value": f"${item['value']:,.0f}",
+            "Max Loan (80%)": f"${item['limit_80']:,.0f}",
+            "Allocated Debt": f"${item['allocated_debt']:,.0f}",
+            "Resulting LVR": f"{lvr_individual:.1f}%",
+            "Status": status
+        })
+        
+    st.table(pd.DataFrame(structure_data))
+    
+    # 4. Visuals
+    st.subheader("Visualizing the Structure")
+    
+    # Prepare data for bar chart: Asset vs Debt
+    chart_data = pd.DataFrame(asset_calcs)
+    chart_data = chart_data[["name", "value", "allocated_debt"]]
+    chart_data.columns = ["Asset", "Asset Value", "Allocated Debt"]
+    
+    # Melt for Streamlit bar chart
+    chart_data_melted = chart_data.melt("Asset", var_name="Type", value_name="Amount")
+    
+    st.bar_chart(chart_data_melted, x="Asset", y="Amount", color="Type", stack=False)
